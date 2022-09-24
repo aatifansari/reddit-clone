@@ -14,12 +14,15 @@ import com.skywalker.reddit.dto.LoginRequest;
 import com.skywalker.reddit.exception.InvalidTokenException;
 import com.skywalker.reddit.exception.SpringRedditException;
 import com.skywalker.reddit.security.JwtProvider;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
 import com.skywalker.reddit.dto.RegisterRequest;
@@ -78,6 +81,13 @@ public class AuthService {
 		verificationTokenRepository.save(verificationToken);
 		return token;
 	}
+	@Transactional()
+	public User getCurrentUser() {
+		Jwt principal = (Jwt) SecurityContextHolder.
+				getContext().getAuthentication().getPrincipal();
+		return userRepository.findByUsername(principal.getSubject())
+				.orElseThrow(() -> new UsernameNotFoundException("User name not found - " + principal.getSubject()));
+	}
 
 	public void verifyAccount(String token) {
 
@@ -104,5 +114,21 @@ public class AuthService {
 		SecurityContextHolder.getContext().setAuthentication(authenticate);
 		String jwtToken = jwtProvider.generateToken(authenticate);
 		return new AuthenticationResponse(jwtToken, loginRequest.getUsername());
+	}
+
+//	public AuthenticationResponse refreshToken(RefreshTokenRequest refreshTokenRequest) {
+//		refreshTokenService.validateRefreshToken(refreshTokenRequest.getRefreshToken());
+//		String token = jwtProvider.generateTokenWithUserName(refreshTokenRequest.getUsername());
+//		return AuthenticationResponse.builder()
+//				.authenticationToken(token)
+//				.refreshToken(refreshTokenRequest.getRefreshToken())
+//				.expiresAt(Instant.now().plusMillis(jwtProvider.getJwtExpirationInMillis()))
+//				.username(refreshTokenRequest.getUsername())
+//				.build();
+//	}
+
+	public boolean isLoggedIn() {
+		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+		return !(authentication instanceof AnonymousAuthenticationToken) && authentication.isAuthenticated();
 	}
 }
